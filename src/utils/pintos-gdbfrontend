@@ -1,0 +1,9 @@
+#! /bin/sh
+
+# Expects to be called from with a given task's build directory
+if [ -z ${PINTOS_HOME+x} ]; then
+  echo "Environment variable \`PINTOS_HOME\` not set; please run \`source ./activate.sh\` in the root of this project"
+  exit 127
+fi
+
+gdbfrontend -g "$PINTOS_HOME/src/utils/pintos-gdb"

@@ -1,0 +1,112 @@
+            +----------------------+
+            |        OS 211        |
+            |  TASK 0: ALARMCLOCK  |
+            |    DESIGN DOCUMENT   |
+            +----------------------+
+            
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, or notes for the
+>> markers, please give them here.
+
+None.
+
+>> Please cite any offline or online sources you consulted while preparing your 
+>> submission, other than the Pintos documentation, course text, lecture notes 
+>> and course staff.
+
+None.
+
+
+                 ALARM CLOCK
+                 ===========
+
+---- DATA STRUCTURES ----
+
+>> A1: (2 marks) 
+>> Copy here the declaration of each new or changed `struct' or `struct' member,
+>> global or static variable, `typedef', or enumeration. 
+>> Identify the purpose of each in roughly 25 words.
+
+Added to struct thread:
+
+    int64_t wakeup_time_ticks; /* Number of ticks (since OS booted)
+                                  at which this thread should wake up.
+                                  NOTE: If wasn't put to sleep by 
+                                  `thread_sleep', value should be set 
+                                  to `-1'. */
+
+The "wake-up queue" is a list of processes that were put to
+sleep until `wakeup_time_ticks' elapses since OS booted.
+Elements are sorted by ascending `wakeup_time_ticks'.
+
+    static struct list sleeping_list;
+
+The value `wakeup_time_ticks' of the first (smallest) element
+in the "wake-up queue", at any given moment. When empty, this
+variable is always `-1`. Used for optimization purposes.
+
+    static int64_t sleeping_list_min_wakeup_time_ticks;
+
+---- ALGORITHMS ----
+
+>> A2: (2 marks)
+>> Briefly describe what happens in a call to timer_sleep(), including the 
+>> actions performed by the timer interrupt handler on each timer tick.
+
+timer_sleep() does nothing if provided negative ticks or if the current thread
+is `idle_thread'. Otherwise, adds current thread to "sleeping queue" and calls
+schedule(). Each tick, timer_interrupt() scans the "sleeping queue" for threads
+that need to be woken up — removing woke-up threads from the queue in the process.
+
+>> A3: (2 marks)
+>> What steps are taken to minimize the amount of time spent in the timer 
+>> interrupt handler?
+
+If timer_ticks() returns a value less than the smallest wakeup time,
+i.e. `sleeping_list_min_wakeup_time_ticks', then no threads need to be
+woken up and timer_interrupt() returns early. The `sleeping_list' is
+ordered by ascending `wakeup_time_ticks', so timer_interrupt() only
+needs to iterate over the front part of the queue, i.e. threads that
+need to be woken up.
+
+
+---- SYNCHRONIZATION ----
+
+>> A4: (1 mark)
+>> How are race conditions avoided when multiple threads call timer_sleep() 
+>> simultaneously?
+
+timer_sleep() modifies lists of threads, and calls schedule(), so interrupts
+are disabled for such critical sections of code, to avoid race conditions.
+When multiple threads call timer_sleep() simultaneously, the global synchronization
+(induced by disabling interrupts) forces one thread to wait until the other is
+done executing, only running the synchronized sections after that.
+
+>> A5: (1 mark)
+>> How are race conditions avoided when a timer interrupt occurs during a call 
+>> to timer_sleep()?
+
+timer_sleep() modifies lists of threads, and calls schedule(), so interrupts
+are disabled for such critical sections of code, to avoid race conditions.
+Non-critical sections don't access shared resources, so a timer interrupt
+cannot cause any race conditions. On the other hand, critical sections cannot
+be preempted by the timer interrupt, so no race conditions occur either.
+
+---- RATIONALE ----
+
+>> A6: (2 marks)
+>> Why did you choose this design? 
+>> In what ways is it superior to another design you considered?
+
+I chose this design because, by sorting the "sleeping queue" in ascending order
+and providing providing quick lookup of the smallest element, amount of time 
+spent in the timer interrupt handler could be effectively minimized.
+
+I considered having a `struct sleeping_thread' which held a pointer to a thread,
+a `struct list_element', and the time to wake up; this would be the type element
+type held by `sleeping_list'. This would result in unnecessary memory allocation
+every time a thread was put to sleep, and de-allocations when woken up. Instead
+I re-used the `elem' member of `struct thread' and added `wakeup_time_ticks',
+removing the need for these (de-)allocations.
